@@ -1,65 +1,63 @@
 import React, { useEffect, useState } from "react";
 import QRCode from "qrcode.react";
 import axios from "axios";
+import { useParams } from "react-router-dom";
+const URL_API = "http://localhost:8080/api/invoice";
 
 const Invoice = () => {
+  const [seconds, setSeconds] = useState(0);
+  const [timer, setTimer] = useState({});
   const [data, setData] = useState({});
   const [codeValue, setCodeValue] = useState("");
-  const [time, setTime] = useState({});
-  const [seconds, setSeconds] = useState(5);
+
+  let { id } = useParams();
 
   useEffect(() => {
-    let PaymentCurrencyNetwork;
-    let addr;
-    axios
-      .get(
-        "http://localhost:8080/api/invoice/a626fb52-de85-4fe1-a30f-93d161380e02"
-      )
-      .then((res) => {
-        if (res.data.Invoice.PaymentCurrencyNetwork === "ETH") {
-          PaymentCurrencyNetwork = "ethereum";
-        }
-        addr =
-          PaymentCurrencyNetwork +
-          ":" +
-          res.data.Invoice.PaymentAddress +
-          "?amount=" +
-          res.data.Invoice.RequestedDepositAmount;
+    getInvoiceById(id);
+    // a626fb52-de85-4fe1-a30f-93d161380e02
+  }, [id]);
 
-        let expired = Date.parse(res.data.Invoice.ExpiredAt) - Date.now();
-        setCodeValue(addr);
-        // setSeconds(expired);
-        // setTime(secondsToTime(expired));
-        console.log(Date.parse(res.data.Invoice.ExpiredAt) - Date.now());
-        setData(res.data.Invoice);
-
-        // ---------------------
-        // const timer = setInterval(() => {
-        //   setSeconds((s) => s - 1);
-        //   // countDown();
-        // }, 1000);
-
-        // return () => clearInterval(timer);
-      });
-  }, []);
-
+  // CountDown Timer
   useEffect(() => {
-    // countDown();
-    console.log(seconds);
+    setTimer(secondsToTime(seconds));
+    let interval = null;
+    interval = setInterval(() => {
+      setSeconds((seconds) => seconds - 1);
+    }, 1000);
+    return () => clearInterval(interval);
   }, [seconds]);
 
-  const countDown = () => {
-    console.log(seconds);
-    const secondValues = seconds - 1;
+  // Get Invoice By Id Api
+  const getInvoiceById = async (id) => {
+    let PaymentCurrencyNetwork = "";
+    let addr = "";
+    let expired = 0;
 
-    setTime(secondsToTime(secondValues));
-    setSeconds(secondValues);
-    if (secondValues === 0) {
-      console.log("expired");
-      //   clearInterval(timer);
-    }
+    const paramURL = URL_API + "/" + id;
+
+    await axios.get(paramURL).then((res) => {
+      if (res.data.Invoice.PaymentCurrencyNetwork === "ETH") {
+        PaymentCurrencyNetwork = "ethereum";
+      }
+      addr =
+        PaymentCurrencyNetwork +
+        ":" +
+        res.data.Invoice.PaymentAddress +
+        "?amount=" +
+        res.data.Invoice.RequestedDepositAmount;
+
+      expired = Date.parse(res.data.Invoice.ExpiredAt) - Date.now();
+      if (expired <= 0) {
+        setSeconds(0);
+      } else {
+        setSeconds(expired / 1000);
+      }
+      setCodeValue(addr);
+      setData(res.data.Invoice);
+    });
   };
 
+  // convert seconds to time util
   const secondsToTime = (secs) => {
     let hours = Math.floor(secs / (60 * 60));
 
@@ -74,17 +72,23 @@ const Invoice = () => {
       m: minutes,
       s: seconds,
     };
-    console.log(obj);
     return obj;
   };
 
-  //   useEffect(() => {
+  // Check expiration
+  const isExpired = (timer) =>
+    timer && timer.h <= 0 && timer.m <= 0 && timer.s <= 0;
 
-  //   }, []);
   return (
     <div>
-      {/* <p>Expired at: {seconds > 0 ? `${time.m}:${time.s}` : "Expired!"}</p> */}
-      <p>Expired at:{data.ExpiredAt} </p>
+      <div style={{ margin: 20 }}>
+        <span>Expired at: </span>
+        <span>
+          {!isExpired(timer)
+            ? timer.h + ":" + timer.m + ":" + timer.s
+            : "Expired!"}
+        </span>
+      </div>
       <QRCode value={codeValue} size={200} />
       <p>{data.PaymentAddress}</p>
       <div>
